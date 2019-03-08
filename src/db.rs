@@ -9,30 +9,24 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
-const USIZE_SIZE: usize = std::mem::size_of::<usize>();
-
-fn id_to_bytes(id: usize) -> [u8; 8] {
+fn id_to_bytes(id: u64) -> [u8; 8] {
     id.to_ne_bytes()
 }
 
-fn id_to_usize(id: &[u8]) -> Fallible<usize> {
-    ensure!(
-        id.len() == USIZE_SIZE,
-        "row ID {:?} is incorrect length",
-        id
-    );
-    let mut array = [0; USIZE_SIZE];
+fn id_to_u64(id: &[u8]) -> Fallible<u64> {
+    ensure!(id.len() == 8, "row ID {:?} is incorrect length", id);
+    let mut array = [0; 8];
     array.copy_from_slice(id);
-    Ok(usize::from_ne_bytes(array))
+    Ok(u64::from_ne_bytes(array))
 }
 
 pub(crate) trait Row: Sized {
     const TREE: &'static [u8];
 
-    fn load(id: usize, blob: &[u8]) -> Fallible<Self>;
-    fn save<F>(&mut self, id_gen: F) -> Fallible<(usize, Vec<u8>)>
+    fn load(id: u64, blob: &[u8]) -> Fallible<Self>;
+    fn save<F>(&mut self, id_gen: F) -> Fallible<(u64, Vec<u8>)>
     where
-        F: FnOnce(Option<usize>) -> Fallible<usize>;
+        F: FnOnce(Option<u64>) -> Fallible<u64>;
 }
 
 pub(crate) struct Db {
@@ -46,7 +40,7 @@ impl Db {
         })
     }
 
-    pub(crate) fn load<T: Row>(&self, id: usize) -> Fallible<Option<T>> {
+    pub(crate) fn load<T: Row>(&self, id: u64) -> Fallible<Option<T>> {
         let tree = self.sled.open_tree(T::TREE.to_vec())?;
         Ok(match tree.get(id_to_bytes(id))? {
             Some(value) => Some(T::load(id, &value)?),
@@ -130,7 +124,7 @@ impl<T: Row> Iterator for Iter<T> {
         } else {
             match self.tree.get_gt(&self.last_key) {
                 Ok(Some((key, value))) => {
-                    let id = id_to_usize(&key);
+                    let id = id_to_u64(&key);
                     self.last_key = key;
                     Some(id.and_then(|id| T::load(id, &value)))
                 }

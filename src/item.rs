@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct Item {
     #[serde(skip)]
-    id: Option<usize>,
+    id: Option<u64>,
 
     pub(crate) classification: String,
     pub(crate) author_sort: String,
@@ -92,15 +92,15 @@ impl Item {
 impl Row for Item {
     const TREE: &'static [u8] = b"items";
 
-    fn load(id: usize, blob: &[u8]) -> Fallible<Item> {
+    fn load(id: u64, blob: &[u8]) -> Fallible<Item> {
         let mut item: Item = serde_json::from_slice(blob)?;
         item.id = Some(id);
         Ok(item)
     }
 
-    fn save<F>(&mut self, id_gen: F) -> Fallible<(usize, Vec<u8>)>
+    fn save<F>(&mut self, id_gen: F) -> Fallible<(u64, Vec<u8>)>
     where
-        F: FnOnce(Option<usize>) -> Fallible<usize>,
+        F: FnOnce(Option<u64>) -> Fallible<u64>,
     {
         let id = id_gen(self.id)?;
         self.id = Some(id);
