@@ -93,7 +93,7 @@ impl Row for Item {
     const TREE: &'static [u8] = b"items";
 
     fn load(id: u64, blob: &[u8]) -> Fallible<Item> {
-        let mut item: Item = serde_json::from_slice(blob)?;
+        let mut item: Item = serde_cbor::from_slice(blob)?;
         item.id = Some(id);
         Ok(item)
     }
@@ -104,7 +104,7 @@ impl Row for Item {
     {
         let id = id_gen(self.id)?;
         self.id = Some(id);
-        Ok((id, serde_json::to_vec(self)?))
+        Ok((id, serde_cbor::to_vec(self)?))
     }
 }
 
