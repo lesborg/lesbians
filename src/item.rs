@@ -23,6 +23,9 @@ pub(crate) struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) barcode: Option<String>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) identifiers: Vec<Identifier>,
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) notes: Option<String>,
 }
@@ -45,6 +48,7 @@ impl Item {
 
             authors: Default::default(),
             barcode: Default::default(),
+            identifiers: Default::default(),
             notes: Default::default(),
         }
     }
@@ -122,22 +126,22 @@ impl Ord for Item {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) enum Identifier {
     #[serde(rename = "discogs-master")]
-    DiscogsMaster,
+    DiscogsMaster(String),
     #[serde(rename = "discogs-release")]
-    DiscogsRelease,
+    DiscogsRelease(String),
     #[serde(rename = "isbn13")]
-    ISBN13,
+    ISBN13(String),
     #[serde(rename = "lccn")]
-    LCCN,
+    LCCN(String),
     #[serde(rename = "musicbrainz-release")]
-    MusicBrainzRelease,
+    MusicBrainzRelease(String),
     #[serde(rename = "musicbrainz-release-group")]
-    MusicBrainzReleaseGroup,
+    MusicBrainzReleaseGroup(String),
     #[serde(rename = "oclc")]
-    OCLC,
+    OCLC(String),
     #[serde(rename = "openlibrary")]
-    OpenLibrary,
+    OpenLibrary(String),
 }
