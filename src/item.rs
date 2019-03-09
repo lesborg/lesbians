@@ -75,18 +75,38 @@ pub(crate) struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) notes: Option<String>,
 
+    /// Discogs release ID for identifying a musical work.
+    ///
+    /// [Wikidata property P2206](https://www.wikidata.org/wiki/Property:P2206)
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) discogs_release: Option<String>,
+
+    /// ISBN-13 for identifying a book. LESBIANS only stores the 13-digit ISBN but has some smarts
+    /// around converting 10-digit ISBNs.
+    ///
+    /// [Wikidata property P212](https://www.wikidata.org/wiki/Property:P212)
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) isbn13: Option<String>,
+
+    /// Library of Congress Control Number for identifying a bibliographic record.
+    ///
+    /// [Wikidata property P1144](https://www.wikidata.org/wiki/Property:P1144)
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) lccn: Option<String>,
+
+    /// OCLC control number for identifying a bibliographic record.
+    ///
+    /// [Wikidata property P243](https://www.wikidata.org/wiki/Property:P243)
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) oclc_number: Option<String>,
+
+    /// Open Library ID for identifying a book.
+    ///
+    /// [Wikidata property P648](https://www.wikidata.org/wiki/Property:P648)
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) openlibrary_id: Option<String>,
