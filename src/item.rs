@@ -1,9 +1,46 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-use crate::db::Row;
+use crate::db::{Row, SaveData};
 use failure::Fallible;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use tantivy::schema::{Field, Schema};
+use tantivy::Document;
+
+struct ItemSchema {
+    schema: Schema,
+    id: Field,
+    title: Field,
+    authors: Field,
+    barcode: Field,
+    identifiers: Field,
+}
+
+impl ItemSchema {
+    fn new() -> ItemSchema {
+        use tantivy::schema::{SchemaBuilder, FAST, INT_INDEXED, INT_STORED, STRING, TEXT};
+
+        let mut schema_builder = SchemaBuilder::default();
+        let id = schema_builder.add_u64_field("id", INT_INDEXED | INT_STORED | FAST);
+        let title = schema_builder.add_text_field("title", TEXT);
+        let authors = schema_builder.add_text_field("authors", TEXT);
+        let barcode = schema_builder.add_text_field("barcode", STRING);
+        let identifiers = schema_builder.add_text_field("identifiers", TEXT);
+        ItemSchema {
+            schema: schema_builder.build(),
+            id,
+            title,
+            authors,
+            barcode,
+            identifiers,
+        }
+    }
+}
+
+lazy_static! {
+    static ref SCHEMA: ItemSchema = ItemSchema::new();
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct Item {
@@ -53,6 +90,30 @@ impl Item {
         }
     }
 
+    fn document(&self) -> Document {
+        let mut document = Document::new();
+        if let Some(id) = self.id {
+            document.add_u64(SCHEMA.id, id);
+        }
+        document.add_text(SCHEMA.title, &self.title);
+        if self.authors.is_empty() {
+            document.add_text(SCHEMA.authors, &self.author_sort);
+        } else {
+            for author in &self.authors {
+                document.add_text(SCHEMA.authors, author);
+            }
+        }
+        if let Some(barcode) = &self.barcode {
+            document.add_text(SCHEMA.barcode, barcode);
+        }
+        for identifier in &self.identifiers {
+            if let Some(token) = identifier.token() {
+                document.add_text(SCHEMA.identifiers, &token);
+            }
+        }
+        document
+    }
+
     fn normalize_author(&self) -> impl Iterator<Item = char> + '_ {
         self.author_sort
             .chars()
@@ -90,7 +151,7 @@ impl Item {
 }
 
 impl Row for Item {
-    const TREE: &'static [u8] = b"items";
+    const TREE: &'static str = "items";
 
     fn load(id: u64, blob: &[u8]) -> Fallible<Item> {
         let mut item: Item = serde_cbor::from_slice(blob)?;
@@ -98,13 +159,34 @@ impl Row for Item {
         Ok(item)
     }
 
-    fn save<F>(&mut self, id_gen: F) -> Fallible<(u64, Vec<u8>)>
+    fn save<F>(&mut self, id_gen: F) -> Fallible<SaveData>
     where
         F: FnOnce(Option<u64>) -> Fallible<u64>,
     {
         let id = id_gen(self.id)?;
         self.id = Some(id);
-        Ok((id, serde_cbor::to_vec(self)?))
+        Ok(SaveData {
+            id,
+            blob: serde_cbor::to_vec(self)?,
+            document: Some(self.document()),
+        })
+    }
+
+    fn schema() -> Schema {
+        SCHEMA.schema.clone()
+    }
+
+    fn id_field() -> Field {
+        SCHEMA.id
+    }
+
+    fn query_parser_fields() -> Vec<Field> {
+        vec![
+            SCHEMA.title,
+            SCHEMA.authors,
+            SCHEMA.barcode,
+            SCHEMA.identifiers,
+        ]
     }
 }
 
@@ -144,4 +226,20 @@ pub(crate) enum Identifier {
     OCLC(String),
     #[serde(rename = "openlibrary")]
     OpenLibrary(String),
+}
+
+impl Identifier {
+    fn token(&self) -> Option<String> {
+        use Identifier::*;
+        match self {
+            DiscogsMaster(s)
+            | DiscogsRelease(s)
+            | ISBN13(s)
+            | LCCN(s)
+            | MusicBrainzRelease(s)
+            | MusicBrainzReleaseGroup(s)
+            | OCLC(s)
+            | OpenLibrary(s) => Some(s.to_owned()),
+        }
+    }
 }
