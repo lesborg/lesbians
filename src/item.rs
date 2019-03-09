@@ -15,7 +15,7 @@ struct ItemSchema {
     authors: Field,
     barcode: Field,
     discogs_release: Field,
-    isbn13: Field,
+    isbn: Field,
     lccn: Field,
     oclc_number: Field,
     openlibrary_id: Field,
@@ -31,7 +31,7 @@ impl ItemSchema {
         let authors = schema_builder.add_text_field("author", TEXT);
         let barcode = schema_builder.add_text_field("barcode", STRING);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
-        let isbn13 = schema_builder.add_text_field("isbn", STRING);
+        let isbn = schema_builder.add_text_field("isbn", STRING);
         let lccn = schema_builder.add_text_field("lccn", STRING);
         let oclc_number = schema_builder.add_text_field("oclc", STRING);
         let openlibrary_id = schema_builder.add_text_field("openlibrary", STRING);
@@ -42,7 +42,7 @@ impl ItemSchema {
             authors,
             barcode,
             discogs_release,
-            isbn13,
+            isbn,
             lccn,
             oclc_number,
             openlibrary_id,
@@ -160,14 +160,17 @@ impl Item {
                 if let Some($i) = &self.$i {
                     document.add_text(SCHEMA.$i, $i)
                 }
-            }
+            };
         }
         add_option!(barcode);
         add_option!(discogs_release);
-        add_option!(isbn13);
         add_option!(lccn);
         add_option!(oclc_number);
         add_option!(openlibrary_id);
+
+        if let Some(isbn13) = &self.isbn13 {
+            document.add_text(SCHEMA.isbn, isbn13);
+        }
 
         document
     }
@@ -247,7 +250,7 @@ impl IndexedRow for Item {
             SCHEMA.authors,
             SCHEMA.barcode,
             SCHEMA.discogs_release,
-            SCHEMA.isbn13,
+            SCHEMA.isbn,
             SCHEMA.lccn,
             SCHEMA.oclc_number,
             SCHEMA.openlibrary_id,
