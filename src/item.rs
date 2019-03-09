@@ -14,7 +14,7 @@ struct ItemSchema {
     title: Field,
     authors: Field,
     barcode: Field,
-    discogs_master: Field,
+    discogs_release: Field,
     isbn13: Field,
     lccn: Field,
     oclc_number: Field,
@@ -30,7 +30,7 @@ impl ItemSchema {
         let title = schema_builder.add_text_field("title", TEXT);
         let authors = schema_builder.add_text_field("author", TEXT);
         let barcode = schema_builder.add_text_field("barcode", STRING);
-        let discogs_master = schema_builder.add_text_field("discogs", STRING);
+        let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn13 = schema_builder.add_text_field("isbn", STRING);
         let lccn = schema_builder.add_text_field("lccn", STRING);
         let oclc_number = schema_builder.add_text_field("oclc", STRING);
@@ -41,7 +41,7 @@ impl ItemSchema {
             title,
             authors,
             barcode,
-            discogs_master,
+            discogs_release,
             isbn13,
             lccn,
             oclc_number,
@@ -77,7 +77,7 @@ pub(crate) struct Item {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) discogs_master: Option<String>,
+    pub(crate) discogs_release: Option<String>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) isbn13: Option<String>,
@@ -112,7 +112,7 @@ impl Item {
             barcode: None,
             notes: None,
 
-            discogs_master: None,
+            discogs_release: None,
             isbn13: None,
             lccn: None,
             oclc_number: None,
@@ -143,7 +143,7 @@ impl Item {
             }
         }
         add_option!(barcode);
-        add_option!(discogs_master);
+        add_option!(discogs_release);
         add_option!(isbn13);
         add_option!(lccn);
         add_option!(oclc_number);
@@ -226,7 +226,7 @@ impl IndexedRow for Item {
             SCHEMA.title,
             SCHEMA.authors,
             SCHEMA.barcode,
-            SCHEMA.discogs_master,
+            SCHEMA.discogs_release,
             SCHEMA.isbn13,
             SCHEMA.lccn,
             SCHEMA.oclc_number,
