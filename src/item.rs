@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+use crate::date::PartialDate;
 use crate::db::{IndexedRow, Row, SaveData};
 use failure::Fallible;
 use lazy_static::lazy_static;
@@ -61,7 +62,9 @@ pub(crate) struct Item {
 
     pub(crate) classification: String,
     pub(crate) author_sort: String,
-    pub(crate) year: Option<u64>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) date: Option<PartialDate>,
     pub(crate) title: String,
     pub(crate) language: String,
 
@@ -124,7 +127,7 @@ impl Item {
 
             classification,
             author_sort: author_sort.to_owned(),
-            year: None,
+            date: None,
             title: title.to_owned(),
             language,
 
@@ -192,10 +195,13 @@ impl Item {
 
     pub(crate) fn call_number(&self) -> String {
         let author: String = self.normalize_author().take(5).collect();
-        if let Some(year) = self.year {
+        if let Some(date) = &self.date {
             format!(
                 "{} {} {} {}",
-                self.classification, author, year, self.language
+                self.classification,
+                author,
+                date.year(),
+                self.language
             )
         } else {
             format!("{} {} {}", self.classification, author, self.language)
@@ -269,7 +275,7 @@ impl Ord for Item {
         self.classification
             .cmp(&other.classification)
             .then(self.normalize_author().cmp(other.normalize_author()))
-            .then(self.year.cmp(&other.year))
+            .then(self.date.cmp(&other.date))
             .then(self.title.cmp(&other.title))
             .then(self.language.cmp(&other.language))
             .then(self.id.cmp(&other.id))
