@@ -29,7 +29,7 @@ fn id_to_u64(id: &[u8]) -> Fallible<u64> {
     Ok(u64::from_ne_bytes(array))
 }
 
-fn open_or_create_index<T: Row>(path: &Path) -> Fallible<(Index, IndexWriter)> {
+fn open_or_create_index<T: IndexedRow>(path: &Path) -> Fallible<(Index, IndexWriter)> {
     let path = path.join("idx").join(T::TREE);
     fs::create_dir_all(&path)?;
     let index = Index::open_or_create(MmapDirectory::open(&path)?, T::schema())?;
@@ -41,7 +41,31 @@ fn open_or_create_index<T: Row>(path: &Path) -> Fallible<(Index, IndexWriter)> {
 pub(crate) struct SaveData {
     pub(crate) id: u64,
     pub(crate) blob: Vec<u8>,
-    pub(crate) document: Option<Document>,
+    pub(crate) index: Option<IndexData>,
+}
+
+#[derive(Debug)]
+pub(crate) struct IndexData {
+    pub(crate) id_field: Field,
+    pub(crate) document: Document,
+}
+
+impl SaveData {
+    pub(crate) fn new(id: u64, blob: Vec<u8>) -> SaveData {
+        SaveData {
+            id,
+            blob,
+            index: None,
+        }
+    }
+
+    pub(crate) fn indexed(id: u64, blob: Vec<u8>, id_field: Field, document: Document) -> SaveData {
+        SaveData {
+            id,
+            blob,
+            index: Some(IndexData { id_field, document }),
+        }
+    }
 }
 
 pub(crate) trait Row: Sized {
@@ -51,7 +75,9 @@ pub(crate) trait Row: Sized {
     fn save<F>(&mut self, id_gen: F) -> Fallible<SaveData>
     where
         F: FnOnce(Option<u64>) -> Fallible<u64>;
+}
 
+pub(crate) trait IndexedRow: Row {
     fn schema() -> Schema;
     fn id_field() -> Field;
     fn query_parser_fields() -> Vec<Field>;
@@ -98,10 +124,10 @@ impl Db {
             None => self.sled.generate_id().map_err(failure::Error::from),
         })?;
         tree.set(id_to_bytes(save_data.id), save_data.blob)?;
-        if let Some(document) = save_data.document {
+        if let Some(IndexData { id_field, document }) = save_data.index {
             if let Some((_, ref mut index_writer)) = self.indices.get_mut(&TypeId::of::<T>()) {
                 index_writer.prepare_commit()?;
-                index_writer.delete_term(Term::from_field_u64(T::id_field(), save_data.id));
+                index_writer.delete_term(Term::from_field_u64(id_field, save_data.id));
                 index_writer.add_document(document);
                 index_writer.commit()?;
             }
@@ -109,7 +135,7 @@ impl Db {
         Ok(())
     }
 
-    pub(crate) fn query<T: Row>(&mut self, query: &str) -> Fallible<Vec<T>>
+    pub(crate) fn query<T: IndexedRow>(&mut self, query: &str) -> Fallible<Vec<T>>
     where
         T: 'static,
     {

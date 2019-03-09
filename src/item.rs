@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-use crate::db::{Row, SaveData};
+use crate::db::{IndexedRow, Row, SaveData};
 use failure::Fallible;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,11 @@ struct ItemSchema {
     title: Field,
     authors: Field,
     barcode: Field,
-    identifiers: Field,
+    discogs_master: Field,
+    isbn13: Field,
+    lccn: Field,
+    oclc_number: Field,
+    openlibrary_id: Field,
 }
 
 impl ItemSchema {
@@ -24,16 +28,24 @@ impl ItemSchema {
         let mut schema_builder = SchemaBuilder::default();
         let id = schema_builder.add_u64_field("id", INT_INDEXED | INT_STORED | FAST);
         let title = schema_builder.add_text_field("title", TEXT);
-        let authors = schema_builder.add_text_field("authors", TEXT);
+        let authors = schema_builder.add_text_field("author", TEXT);
         let barcode = schema_builder.add_text_field("barcode", STRING);
-        let identifiers = schema_builder.add_text_field("identifiers", TEXT);
+        let discogs_master = schema_builder.add_text_field("discogs", STRING);
+        let isbn13 = schema_builder.add_text_field("isbn", STRING);
+        let lccn = schema_builder.add_text_field("lccn", STRING);
+        let oclc_number = schema_builder.add_text_field("oclc", STRING);
+        let openlibrary_id = schema_builder.add_text_field("openlibrary", STRING);
         ItemSchema {
             schema: schema_builder.build(),
             id,
             title,
             authors,
             barcode,
-            identifiers,
+            discogs_master,
+            isbn13,
+            lccn,
+            oclc_number,
+            openlibrary_id,
         }
     }
 }
@@ -60,11 +72,24 @@ pub(crate) struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) barcode: Option<String>,
     #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(crate) identifiers: Vec<Identifier>,
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) notes: Option<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) discogs_master: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) isbn13: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) lccn: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) oclc_number: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) openlibrary_id: Option<String>,
 }
 
 impl Item {
@@ -75,23 +100,29 @@ impl Item {
         language: String,
     ) -> Item {
         Item {
-            id: Default::default(),
+            id: None,
 
             classification,
             author_sort: author_sort.to_owned(),
-            year: Default::default(),
+            year: None,
             title: title.to_owned(),
             language,
 
-            authors: Default::default(),
-            barcode: Default::default(),
-            identifiers: Default::default(),
-            notes: Default::default(),
+            authors: Vec::new(),
+            barcode: None,
+            notes: None,
+
+            discogs_master: None,
+            isbn13: None,
+            lccn: None,
+            oclc_number: None,
+            openlibrary_id: None,
         }
     }
 
     fn document(&self) -> Document {
         let mut document = Document::new();
+
         if let Some(id) = self.id {
             document.add_u64(SCHEMA.id, id);
         }
@@ -103,14 +134,21 @@ impl Item {
                 document.add_text(SCHEMA.authors, author);
             }
         }
-        if let Some(barcode) = &self.barcode {
-            document.add_text(SCHEMA.barcode, barcode);
-        }
-        for identifier in &self.identifiers {
-            if let Some(token) = identifier.token() {
-                document.add_text(SCHEMA.identifiers, &token);
+
+        macro_rules! add_option {
+            ($i:ident) => {
+                if let Some($i) = &self.$i {
+                    document.add_text(SCHEMA.$i, $i)
+                }
             }
         }
+        add_option!(barcode);
+        add_option!(discogs_master);
+        add_option!(isbn13);
+        add_option!(lccn);
+        add_option!(oclc_number);
+        add_option!(openlibrary_id);
+
         document
     }
 
@@ -165,13 +203,16 @@ impl Row for Item {
     {
         let id = id_gen(self.id)?;
         self.id = Some(id);
-        Ok(SaveData {
+        Ok(SaveData::indexed(
             id,
-            blob: serde_cbor::to_vec(self)?,
-            document: Some(self.document()),
-        })
+            serde_cbor::to_vec(self)?,
+            Item::id_field(),
+            self.document(),
+        ))
     }
+}
 
+impl IndexedRow for Item {
     fn schema() -> Schema {
         SCHEMA.schema.clone()
     }
@@ -185,7 +226,11 @@ impl Row for Item {
             SCHEMA.title,
             SCHEMA.authors,
             SCHEMA.barcode,
-            SCHEMA.identifiers,
+            SCHEMA.discogs_master,
+            SCHEMA.isbn13,
+            SCHEMA.lccn,
+            SCHEMA.oclc_number,
+            SCHEMA.openlibrary_id,
         ]
     }
 }
@@ -205,41 +250,5 @@ impl Ord for Item {
             .then(self.title.cmp(&other.title))
             .then(self.language.cmp(&other.language))
             .then(self.id.cmp(&other.id))
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) enum Identifier {
-    #[serde(rename = "discogs-master")]
-    DiscogsMaster(String),
-    #[serde(rename = "discogs-release")]
-    DiscogsRelease(String),
-    #[serde(rename = "isbn13")]
-    ISBN13(String),
-    #[serde(rename = "lccn")]
-    LCCN(String),
-    #[serde(rename = "musicbrainz-release")]
-    MusicBrainzRelease(String),
-    #[serde(rename = "musicbrainz-release-group")]
-    MusicBrainzReleaseGroup(String),
-    #[serde(rename = "oclc")]
-    OCLC(String),
-    #[serde(rename = "openlibrary")]
-    OpenLibrary(String),
-}
-
-impl Identifier {
-    fn token(&self) -> Option<String> {
-        use Identifier::*;
-        match self {
-            DiscogsMaster(s)
-            | DiscogsRelease(s)
-            | ISBN13(s)
-            | LCCN(s)
-            | MusicBrainzRelease(s)
-            | MusicBrainzReleaseGroup(s)
-            | OCLC(s)
-            | OpenLibrary(s) => Some(s.to_owned()),
-        }
     }
 }
