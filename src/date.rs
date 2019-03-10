@@ -9,6 +9,18 @@ use std::str::FromStr;
 pub(crate) struct PartialDate(u16, Option<(u8, Option<u8>)>);
 
 impl PartialDate {
+    pub(crate) fn from_y(year: u16) -> PartialDate {
+        PartialDate(year, None)
+    }
+
+    pub(crate) fn from_ym(year: u16, month: u8) -> PartialDate {
+        PartialDate(year, Some((month, None)))
+    }
+
+    pub(crate) fn from_ymd(year: u16, month: u8, day: u8) -> PartialDate {
+        PartialDate(year, Some((month, Some(day))))
+    }
+
     pub(crate) fn year(&self) -> u16 {
         self.0
     }
@@ -76,5 +88,26 @@ impl<'de> Deserialize<'de> for PartialDate {
         String::deserialize(deserializer)?
             .parse()
             .map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PartialDate;
+    use std::str::FromStr;
+
+    #[test]
+    fn test() {
+        let date = PartialDate::from_y(6969);
+        assert_eq!(PartialDate::from_str("6969").unwrap(), date);
+        assert_eq!("6969", date.to_string());
+
+        let date = PartialDate::from_ym(6969, 4);
+        assert_eq!(PartialDate::from_str("6969-04").unwrap(), date);
+        assert_eq!("6969-04", date.to_string());
+
+        let date = PartialDate::from_ymd(6969, 4, 20);
+        assert_eq!(PartialDate::from_str("6969-04-20").unwrap(), date);
+        assert_eq!("6969-04-20", date.to_string());
     }
 }
