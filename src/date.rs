@@ -24,11 +24,11 @@ impl PartialDate {
 
 impl fmt::Display for PartialDate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)?;
+        write!(f, "{:04}", self.0)?;
         if let Some((month, opt_day)) = self.1 {
-            write!(f, "-{}", month)?;
+            write!(f, "-{:02}", month)?;
             if let Some(day) = opt_day {
-                write!(f, "-{}", day)?;
+                write!(f, "-{:02}", day)?;
             }
         }
         Ok(())
