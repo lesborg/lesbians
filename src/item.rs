@@ -2,6 +2,7 @@
 
 use crate::date::PartialDate;
 use crate::db::{IndexedRow, Row, SaveData};
+use crate::lesb::LESBClassification;
 use failure::Fallible;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -60,7 +61,7 @@ pub(crate) struct Item {
     #[serde(skip)]
     id: Option<u64>,
 
-    pub(crate) classification: String,
+    pub(crate) classification: LESBClassification,
     pub(crate) author_sort: String,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -117,7 +118,7 @@ pub(crate) struct Item {
 
 impl Item {
     pub(crate) fn new(
-        classification: String,
+        classification: LESBClassification,
         author_sort: &str,
         title: &str,
         language: String,
