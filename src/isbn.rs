@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-use lazy_static::lazy_static;
-
 pub(crate) fn isbn10_to_isbn13(isbn10: &str) -> Option<String> {
     let isbn10 = isbn10.replace('-', "").into_bytes();
     if isbn10.len() != 10
