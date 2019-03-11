@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 use lazy_static::lazy_static;
-use regex::bytes::Regex;
 
 pub(crate) fn isbn10_to_isbn13(isbn10: &str) -> Option<String> {
-    lazy_static! {
-        static ref REGEX: Regex = Regex::new("^[0-9]{9}[0-9X]$").unwrap();
-    }
-
     let isbn10 = isbn10.replace('-', "").into_bytes();
-    if !REGEX.is_match(&isbn10) {
+    if isbn10.len() != 10
+        || !isbn10.iter().take(9).all(|b| b.is_ascii_digit())
+        || !(isbn10[9].is_ascii_digit() || isbn10[9] == b'X')
+    {
         return None;
     }
 
@@ -29,12 +27,8 @@ pub(crate) fn isbn10_to_isbn13(isbn10: &str) -> Option<String> {
 }
 
 pub(crate) fn isbn13_to_isbn10(isbn13: &str) -> Option<String> {
-    lazy_static! {
-        static ref REGEX: Regex = Regex::new("^978[0-9]{10}$").unwrap();
-    }
-
     let isbn13 = isbn13.replace('-', "").into_bytes();
-    if !REGEX.is_match(&isbn13) {
+    if isbn13.len() != 13 || !isbn13.iter().all(|b| b.is_ascii_digit()) {
         return None;
     }
 
