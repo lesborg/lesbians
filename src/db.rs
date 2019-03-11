@@ -39,15 +39,16 @@ fn open_or_create_index<T: IndexedRow>(path: &Path) -> Fallible<(Index, IndexWri
 
 #[derive(Debug)]
 pub(crate) struct SaveData {
-    pub(crate) id: u64,
-    pub(crate) blob: Vec<u8>,
-    pub(crate) index: Option<IndexData>,
+    id: u64,
+    blob: Vec<u8>,
+    index: Option<IndexData>,
+    reverse_lookups: Vec<(&'static str, Vec<u8>)>,
 }
 
 #[derive(Debug)]
 pub(crate) struct IndexData {
-    pub(crate) id_field: Field,
-    pub(crate) document: Document,
+    id_field: Field,
+    document: Document,
 }
 
 impl SaveData {
@@ -56,15 +57,20 @@ impl SaveData {
             id,
             blob,
             index: None,
+            reverse_lookups: Vec::new(),
         }
     }
 
-    pub(crate) fn indexed(id: u64, blob: Vec<u8>, id_field: Field, document: Document) -> SaveData {
-        SaveData {
-            id,
-            blob,
-            index: Some(IndexData { id_field, document }),
-        }
+    pub(crate) fn index(self, id_field: Field, document: Document) -> SaveData {
+        let mut v = self;
+        v.index = Some(IndexData { id_field, document });
+        v
+    }
+
+    pub(crate) fn reverse_lookup(self, tree: &'static str, key: Vec<u8>) -> SaveData {
+        let mut v = self;
+        v.reverse_lookups.push((tree, key));
+        v
     }
 }
 
@@ -131,6 +137,10 @@ impl Db {
                 index_writer.add_document(document);
                 index_writer.commit()?;
             }
+        }
+        for (tree, key) in save_data.reverse_lookups {
+            let tree = self.sled.open_tree(tree.as_bytes().to_vec())?;
+            tree.set(key, id_to_bytes(save_data.id).to_vec())?;
         }
         Ok(())
     }

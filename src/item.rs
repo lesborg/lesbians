@@ -16,7 +16,6 @@ struct ItemSchema {
     id: Field,
     title: Field,
     authors: Field,
-    barcode: Field,
     discogs_release: Field,
     isbn: Field,
     lccn: Field,
@@ -32,7 +31,6 @@ impl ItemSchema {
         let id = schema_builder.add_u64_field("id", INT_INDEXED | INT_STORED | FAST);
         let title = schema_builder.add_text_field("title", TEXT);
         let authors = schema_builder.add_text_field("author", TEXT);
-        let barcode = schema_builder.add_text_field("barcode", STRING);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
         let lccn = schema_builder.add_text_field("lccn", STRING);
@@ -43,7 +41,6 @@ impl ItemSchema {
             id,
             title,
             authors,
-            barcode,
             discogs_release,
             isbn,
             lccn,
@@ -167,7 +164,6 @@ impl Item {
                 }
             };
         }
-        add_option!(barcode);
         add_option!(discogs_release);
         add_option!(lccn);
         add_option!(oclc_number);
@@ -237,12 +233,12 @@ impl Row for Item {
     {
         let id = id_gen(self.id)?;
         self.id = Some(id);
-        Ok(SaveData::indexed(
-            id,
-            serde_cbor::to_vec(self)?,
-            Item::id_field(),
-            self.document(),
-        ))
+        let mut save_data =
+            SaveData::new(id, serde_cbor::to_vec(self)?).index(Item::id_field(), self.document());
+        if let Some(barcode) = &self.barcode {
+            save_data = save_data.reverse_lookup("item_barcode", barcode.as_bytes().to_vec());
+        }
+        Ok(save_data)
     }
 }
 
@@ -259,7 +255,6 @@ impl IndexedRow for Item {
         vec![
             SCHEMA.title,
             SCHEMA.authors,
-            SCHEMA.barcode,
             SCHEMA.discogs_release,
             SCHEMA.isbn,
             SCHEMA.lccn,
