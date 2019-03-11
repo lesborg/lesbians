@@ -2,6 +2,7 @@
 
 mod date;
 mod db;
+mod isbn;
 mod item;
 mod lesb;
 

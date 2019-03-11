@@ -2,6 +2,7 @@
 
 use crate::date::PartialDate;
 use crate::db::{IndexedRow, Row, SaveData};
+use crate::isbn::isbn13_to_isbn10;
 use crate::lesb::LESBClassification;
 use failure::Fallible;
 use lazy_static::lazy_static;
@@ -174,6 +175,9 @@ impl Item {
 
         if let Some(isbn13) = &self.isbn13 {
             document.add_text(SCHEMA.isbn, isbn13);
+            if let Some(isbn10) = isbn13_to_isbn10(isbn13) {
+                document.add_text(SCHEMA.isbn, &isbn10);
+            }
         }
 
         document
