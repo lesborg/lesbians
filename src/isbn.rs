@@ -35,8 +35,8 @@ pub(crate) fn isbn13_to_isbn10(isbn13: &str) -> Option<String> {
 
     let mut sum = 0u16;
     let mut acc = 0u16;
-    for i in 0..9 {
-        acc += u16::from(isbn10[i] - b'0');
+    for b in isbn10.iter().take(9) {
+        acc += u16::from(b - b'0');
         sum += acc;
     }
     sum += acc;
