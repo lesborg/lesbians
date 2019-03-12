@@ -5,6 +5,7 @@ use crate::db::{IndexedRow, Row, SaveData};
 use crate::format::Format;
 use crate::isbn::isbn13_to_isbn10;
 use crate::lesb::LESBClassification;
+use crate::location::Location;
 use failure::Fallible;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -17,6 +18,7 @@ struct ItemSchema {
     id: Field,
     title: Field,
     format: Field,
+    location: Field,
     authors: Field,
     discogs_release: Field,
     isbn: Field,
@@ -33,6 +35,7 @@ impl ItemSchema {
         let id = schema_builder.add_u64_field("id", INT_INDEXED | INT_STORED | FAST);
         let title = schema_builder.add_text_field("title", TEXT);
         let format = schema_builder.add_text_field("format", STRING);
+        let location = schema_builder.add_text_field("location", STRING);
         let authors = schema_builder.add_text_field("author", TEXT);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
@@ -44,6 +47,7 @@ impl ItemSchema {
             id,
             title,
             format,
+            location,
             authors,
             discogs_release,
             isbn,
@@ -71,6 +75,7 @@ pub(crate) struct Item {
     pub(crate) title: String,
     pub(crate) language: String,
     pub(crate) format: Format,
+    pub(crate) location: Location,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -126,6 +131,7 @@ impl Item {
         title: &str,
         language: String,
         format: Format,
+        location: Location,
     ) -> Item {
         Item {
             id: None,
@@ -136,6 +142,7 @@ impl Item {
             title: title.to_owned(),
             language,
             format,
+            location,
 
             authors: Vec::new(),
             barcode: None,
@@ -159,6 +166,10 @@ impl Item {
         for term in self.format.search_terms() {
             document.add_text(SCHEMA.format, term);
         }
+        document.add_text(
+            SCHEMA.location,
+            &serde_plain::to_string(&self.location).unwrap(),
+        );
         if self.authors.is_empty() {
             document.add_text(SCHEMA.authors, &self.author_sort);
         } else {
