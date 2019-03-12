@@ -2,6 +2,7 @@
 
 use crate::date::PartialDate;
 use crate::db::{IndexedRow, Row, SaveData};
+use crate::format::Format;
 use crate::isbn::isbn13_to_isbn10;
 use crate::lesb::LESBClassification;
 use failure::Fallible;
@@ -15,6 +16,7 @@ struct ItemSchema {
     schema: Schema,
     id: Field,
     title: Field,
+    format: Field,
     authors: Field,
     discogs_release: Field,
     isbn: Field,
@@ -30,6 +32,7 @@ impl ItemSchema {
         let mut schema_builder = SchemaBuilder::default();
         let id = schema_builder.add_u64_field("id", INT_INDEXED | INT_STORED | FAST);
         let title = schema_builder.add_text_field("title", TEXT);
+        let format = schema_builder.add_text_field("format", STRING);
         let authors = schema_builder.add_text_field("author", TEXT);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
@@ -40,6 +43,7 @@ impl ItemSchema {
             schema: schema_builder.build(),
             id,
             title,
+            format,
             authors,
             discogs_release,
             isbn,
@@ -66,6 +70,7 @@ pub(crate) struct Item {
     pub(crate) date: Option<PartialDate>,
     pub(crate) title: String,
     pub(crate) language: String,
+    pub(crate) format: Format,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -120,6 +125,7 @@ impl Item {
         author_sort: &str,
         title: &str,
         language: String,
+        format: Format,
     ) -> Item {
         Item {
             id: None,
@@ -129,6 +135,7 @@ impl Item {
             date: None,
             title: title.to_owned(),
             language,
+            format,
 
             authors: Vec::new(),
             barcode: None,
@@ -149,6 +156,9 @@ impl Item {
             document.add_u64(SCHEMA.id, id);
         }
         document.add_text(SCHEMA.title, &self.title);
+        for term in self.format.search_terms() {
+            document.add_text(SCHEMA.format, term);
+        }
         if self.authors.is_empty() {
             document.add_text(SCHEMA.authors, &self.author_sort);
         } else {
@@ -254,6 +264,7 @@ impl IndexedRow for Item {
     fn query_parser_fields() -> Vec<Field> {
         vec![
             SCHEMA.title,
+            SCHEMA.format,
             SCHEMA.authors,
             SCHEMA.discogs_release,
             SCHEMA.isbn,
