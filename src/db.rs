@@ -153,7 +153,7 @@ impl Db {
             .indices
             .get(&TypeId::of::<T>())
             .ok_or_else(|| failure::err_msg("no index for row type"))?;
-        let searcher = index.searcher();
+        let searcher = index.reader()?.searcher();
 
         let query_parser = QueryParser::for_index(&index, T::query_parser_fields());
         let query = query_parser

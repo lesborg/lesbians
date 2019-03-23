@@ -29,10 +29,10 @@ struct ItemSchema {
 
 impl ItemSchema {
     fn new() -> ItemSchema {
-        use tantivy::schema::{SchemaBuilder, FAST, INT_INDEXED, INT_STORED, STRING, TEXT};
+        use tantivy::schema::{SchemaBuilder, FAST, INDEXED, STORED, STRING, TEXT};
 
         let mut schema_builder = SchemaBuilder::default();
-        let id = schema_builder.add_u64_field("id", INT_INDEXED | INT_STORED | FAST);
+        let id = schema_builder.add_u64_field("id", INDEXED | STORED | FAST);
         let title = schema_builder.add_text_field("title", TEXT);
         let format = schema_builder.add_text_field("format", STRING);
         let location = schema_builder.add_text_field("location", STRING);
