@@ -69,6 +69,7 @@ pub(crate) struct Item {
 
     pub(crate) classification: LESBClassification,
     pub(crate) author_sort: String,
+    pub(crate) original_date: PartialDate,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) date: Option<PartialDate>,
@@ -128,6 +129,7 @@ impl Item {
     pub(crate) fn new(
         classification: LESBClassification,
         author_sort: &str,
+        original_date: PartialDate,
         title: &str,
         language: String,
         format: Format,
@@ -138,6 +140,7 @@ impl Item {
 
             classification,
             author_sort: author_sort.to_owned(),
+            original_date,
             date: None,
             title: title.to_owned(),
             language,
@@ -217,17 +220,13 @@ impl Item {
 
     pub(crate) fn call_number(&self) -> String {
         let author: String = self.normalize_author().take(5).collect();
-        if let Some(date) = &self.date {
-            format!(
-                "{} {} {} {}",
-                self.classification,
-                author,
-                date.year(),
-                self.language
-            )
-        } else {
-            format!("{} {} {}", self.classification, author, self.language)
-        }
+        format!(
+            "{} {} {} {}",
+            self.classification,
+            author,
+            self.original_date.year(),
+            self.language
+        )
     }
 
     pub(crate) fn author(&self) -> String {
@@ -297,6 +296,7 @@ impl Ord for Item {
         self.classification
             .cmp(&other.classification)
             .then(self.normalize_author().cmp(other.normalize_author()))
+            .then(self.original_date.cmp(&other.original_date))
             .then(self.date.cmp(&other.date))
             .then(self.title.cmp(&other.title))
             .then(self.language.cmp(&other.language))
