@@ -9,7 +9,7 @@ pub(crate) enum Location {
     Billy,
     BillyOversize,
     Kitchen,
-    VinylShelf,
+    MusicShelf,
 }
 
 impl fmt::Display for Location {
@@ -23,7 +23,7 @@ impl fmt::Display for Location {
                 Billy => "Billy bookcases",
                 BillyOversize => "Billy bookcases (oversize)",
                 Kitchen => "Kitchen",
-                VinylShelf => "Vinyl shelf",
+                MusicShelf => "Music shelf",
             }
         )
     }
