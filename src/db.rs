@@ -150,9 +150,12 @@ impl Db {
                 index_writer.commit()?;
             }
         }
-        for (tree_name, data) in save_data.secondary {
+        for tree_name in T::SECONDARY {
             let tree = self.sled.open_tree(tree_name.as_bytes().to_vec())?;
-            tree.set(id_bytes, data)?;
+            match save_data.secondary.get(tree_name) {
+                Some(data) => tree.set(id_bytes, data.as_slice())?,
+                None => tree.del(id_bytes)?,
+            };
         }
         Ok(())
     }

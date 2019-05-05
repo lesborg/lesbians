@@ -35,6 +35,7 @@ fn return_false() -> bool {
     false
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn bool_is_false(b: &bool) -> bool {
     !b
 }
