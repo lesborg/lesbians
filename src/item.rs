@@ -118,8 +118,6 @@ pub(crate) struct Item {
     pub(crate) authors: Vec<Credit>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) original_date: Option<PartialDate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) date: Option<PartialDate>,
     pub(crate) title: String,
     pub(crate) language: String,
     pub(crate) format: Format,
@@ -245,32 +243,40 @@ impl Item {
     }
 
     pub(crate) fn call_number(&self) -> String {
+        // Part 1: LESB classification
         let mut call_number = self.classification.to_string();
         call_number.push_str(" ");
 
-        let author_normalized: String = self
-            .author_sort()
-            .chars()
-            .filter_map(|c| {
-                if c.is_alphanumeric() {
-                    deunicode::deunicode_char(c).map(str::chars)
-                } else {
-                    None
-                }
-            })
-            .flatten()
-            .map(|c| c.to_ascii_uppercase())
-            .take(5)
-            .collect();
-        call_number.push_str(&author_normalized);
+        // Part 2: First 5 characters of author (or title, if no authors)
+        if self.authors.is_empty() {
+            call_number.push_str(&self.title);
+        } else {
+            let author_normalized: String = self
+                .author_sort()
+                .chars()
+                .filter_map(|c| {
+                    if c.is_alphanumeric() {
+                        deunicode::deunicode_char(c).map(str::chars)
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .map(|c| c.to_ascii_uppercase())
+                .take(5)
+                .collect();
+            call_number.push_str(&author_normalized);
+        }
         call_number.push_str(" ");
 
+        // Part 3: Original year of publication (or _ if data missing)
         match self.original_date {
-            Some(date) => call_number.push_str(&date.to_string()),
+            Some(date) => call_number.push_str(&date.year().to_string()),
             None => call_number.push_str("_"),
         }
         call_number.push_str(" ");
 
+        // Part 4: Language
         call_number.push_str(&self.language);
 
         call_number
@@ -338,10 +344,18 @@ impl Ord for Item {
     fn cmp(&self, other: &Self) -> Ordering {
         self.classification
             .cmp(&other.classification)
-            .then(self.author_sort().cmp(&other.author_sort()))
+            .then(if self.authors.is_empty() {
+                self.title.cmp(&other.title)
+            } else {
+                self.author_sort().cmp(&other.author_sort())
+            })
             .then(self.original_date.cmp(&other.original_date))
-            .then(self.date.cmp(&other.date))
-            .then(self.title.cmp(&other.title))
+            .then(self.volume_and_issue.cmp(&other.volume_and_issue))
+            .then(if self.authors.is_empty() {
+                ().cmp(&())
+            } else {
+                self.title.cmp(&other.title)
+            })
             .then(self.language.cmp(&other.language))
             .then(self.id.cmp(&other.id))
     }

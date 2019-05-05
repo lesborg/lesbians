@@ -8,6 +8,12 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PartialDate(u16, Option<(u8, Option<u8>)>);
 
+impl PartialDate {
+    pub(crate) fn year(self) -> u16 {
+        self.0
+    }
+}
+
 impl fmt::Display for PartialDate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:04}", self.0)?;
