@@ -23,6 +23,7 @@ struct ItemSchema {
     discogs_release: Field,
     isbn: Field,
     lccn: Field,
+    mbid: Field,
     oclc_number: Field,
     openlibrary_id: Field,
 }
@@ -40,6 +41,7 @@ impl ItemSchema {
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
         let lccn = schema_builder.add_text_field("lccn", STRING);
+        let mbid = schema_builder.add_text_field("mbid", STRING);
         let oclc_number = schema_builder.add_text_field("oclc", STRING);
         let openlibrary_id = schema_builder.add_text_field("openlibrary", STRING);
         ItemSchema {
@@ -52,6 +54,7 @@ impl ItemSchema {
             discogs_release,
             isbn,
             lccn,
+            mbid,
             oclc_number,
             openlibrary_id,
         }
@@ -69,7 +72,9 @@ pub(crate) struct Item {
 
     pub(crate) classification: LESBClassification,
     pub(crate) author_sort: String,
-    pub(crate) original_date: PartialDate,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) original_date: Option<PartialDate>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) date: Option<PartialDate>,
@@ -81,14 +86,19 @@ pub(crate) struct Item {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) authors: Vec<String>,
+    /// The inventory control barcode for this item. This is not necessarily the ISBN or UPC.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) barcode: Option<String>,
+    /// Free-form notes about this item..
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) notes: Option<String>,
 
-    /// Discogs release ID for identifying a musical work.
+    /// Discogs release ID for identifying a release of a musical work.
+    ///
+    /// This is used to identify a specific released artifact, e.g. a vinyl record vs. a CD for the
+    /// same album.
     ///
     /// [Wikidata property P2206](https://www.wikidata.org/wiki/Property:P2206)
     #[serde(default)]
@@ -110,6 +120,11 @@ pub(crate) struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) lccn: Option<String>,
 
+    /// MusicBrainz release group ID for identifying a musical work.
+    ///
+    /// [Wikidata property P436](https://www.wikidata.org/wiki/Property:P436)
+    pub(crate) musicbrainz_release_group: Option<String>,
+
     /// OCLC control number for identifying a bibliographic record.
     ///
     /// [Wikidata property P243](https://www.wikidata.org/wiki/Property:P243)
@@ -129,7 +144,6 @@ impl Item {
     pub(crate) fn new(
         classification: LESBClassification,
         author_sort: &str,
-        original_date: PartialDate,
         title: &str,
         language: String,
         format: Format,
@@ -140,7 +154,7 @@ impl Item {
 
             classification,
             author_sort: author_sort.to_owned(),
-            original_date,
+            original_date: None,
             date: None,
             title: title.to_owned(),
             language,
@@ -154,6 +168,7 @@ impl Item {
             discogs_release: None,
             isbn13: None,
             lccn: None,
+            musicbrainz_release_group: None,
             oclc_number: None,
             openlibrary_id: None,
         }
@@ -200,6 +215,10 @@ impl Item {
             }
         }
 
+        if let Some(mbid) = &self.musicbrainz_release_group {
+            document.add_text(SCHEMA.mbid, &mbid);
+        }
+
         document
     }
 
@@ -219,14 +238,22 @@ impl Item {
     }
 
     pub(crate) fn call_number(&self) -> String {
-        let author: String = self.normalize_author().take(5).collect();
-        format!(
-            "{} {} {} {}",
-            self.classification,
-            author,
-            self.original_date.year(),
-            self.language
-        )
+        let mut call_number = self.classification.to_string();
+        call_number.push_str(" ");
+
+        let author_normalized: String = self.normalize_author().take(5).collect();
+        call_number.push_str(&author_normalized);
+        call_number.push_str(" ");
+
+        match self.original_date {
+            Some(date) => call_number.push_str(&date.to_string()),
+            None => call_number.push_str("_"),
+        }
+        call_number.push_str(" ");
+
+        call_number.push_str(&self.language);
+
+        call_number
     }
 
     pub(crate) fn author(&self) -> String {
