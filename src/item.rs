@@ -21,7 +21,7 @@ struct ItemSchema {
     volume: Field,
     issue: Field,
     location: Field,
-    authors: Field,
+    author: Field,
     discogs_release: Field,
     isbn: Field,
     issn: Field,
@@ -43,7 +43,7 @@ impl ItemSchema {
         let volume = schema_builder.add_text_field("volume", STRING);
         let issue = schema_builder.add_text_field("issue", STRING);
         let location = schema_builder.add_text_field("location", STRING);
-        let authors = schema_builder.add_text_field("author", TEXT);
+        let author = schema_builder.add_text_field("author", TEXT);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
         let issn = schema_builder.add_text_field("issn", STRING);
@@ -59,7 +59,7 @@ impl ItemSchema {
             volume,
             issue,
             location,
-            authors,
+            author,
             discogs_release,
             isbn,
             issn,
@@ -76,33 +76,61 @@ lazy_static! {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct Author {
+    name: String,
+    sort_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct JoinPhrase(pub String);
+
+impl JoinPhrase {
+    fn is_default(&self) -> bool {
+        *self == JoinPhrase::default()
+    }
+}
+
+impl Default for JoinPhrase {
+    fn default() -> JoinPhrase {
+        JoinPhrase(", ".to_owned())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct Credit {
+    #[serde(flatten)]
+    author: Author,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    credited_as: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "JoinPhrase::is_default")]
+    join_phrase: JoinPhrase,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct Item {
     #[serde(skip)]
     id: Option<u64>,
 
     pub(crate) classification: LESBClassification,
-    pub(crate) author_sort: String,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) authors: Vec<Credit>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) original_date: Option<PartialDate>,
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) date: Option<PartialDate>,
     pub(crate) title: String,
     pub(crate) language: String,
     pub(crate) format: Format,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) volume_and_issue: Option<(u64, u64)>,
     pub(crate) location: Location,
 
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(crate) authors: Vec<String>,
     /// The inventory control barcode for this item. This is not necessarily the ISBN or UPC.
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) barcode: Option<String>,
     /// Free-form notes about this item..
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) notes: Option<String>,
 
@@ -112,7 +140,6 @@ pub(crate) struct Item {
     /// same album.
     ///
     /// [Wikidata property P2206](https://www.wikidata.org/wiki/Property:P2206)
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) discogs_release: Option<String>,
 
@@ -120,42 +147,36 @@ pub(crate) struct Item {
     /// around converting 10-digit ISBNs.
     ///
     /// [Wikidata property P212](https://www.wikidata.org/wiki/Property:P212)
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) isbn13: Option<String>,
 
     /// ISSN for identifying a serial.
     ///
     /// [Wikidata property P236](https://www.wikidata.org/wiki/Property:P236)
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) issn: Option<String>,
 
     /// Library of Congress Control Number for identifying a bibliographic record.
     ///
     /// [Wikidata property P1144](https://www.wikidata.org/wiki/Property:P1144)
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) lccn: Option<String>,
 
     /// MusicBrainz release group ID for identifying a musical work.
     ///
     /// [Wikidata property P436](https://www.wikidata.org/wiki/Property:P436)
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) musicbrainz_release_group: Option<String>,
 
     /// OCLC control number for identifying a bibliographic record.
     ///
     /// [Wikidata property P243](https://www.wikidata.org/wiki/Property:P243)
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) oclc_number: Option<String>,
 
     /// Open Library ID for identifying a book.
     ///
     /// [Wikidata property P648](https://www.wikidata.org/wiki/Property:P648)
-    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) openlibrary_id: Option<String>,
 }
@@ -175,11 +196,10 @@ impl Item {
             SCHEMA.location,
             &serde_plain::to_string(&self.location).unwrap(),
         );
-        if self.authors.is_empty() {
-            document.add_text(SCHEMA.authors, &self.author_sort);
-        } else {
-            for author in &self.authors {
-                document.add_text(SCHEMA.authors, author);
+        for credit in &self.authors {
+            document.add_text(SCHEMA.author, &credit.author.name);
+            if let Some(credited_as) = &credit.credited_as {
+                document.add_text(SCHEMA.author, &credited_as);
             }
         }
 
@@ -215,8 +235,21 @@ impl Item {
         document
     }
 
-    fn normalize_author(&self) -> impl Iterator<Item = char> + '_ {
-        self.author_sort
+    fn author_sort(&self) -> String {
+        let mut s = String::new();
+        for credit in &self.authors {
+            s.push_str(&credit.author.sort_name);
+            s.push_str(&credit.join_phrase.0);
+        }
+        s
+    }
+
+    pub(crate) fn call_number(&self) -> String {
+        let mut call_number = self.classification.to_string();
+        call_number.push_str(" ");
+
+        let author_normalized: String = self
+            .author_sort()
             .chars()
             .filter_map(|c| {
                 if c.is_alphanumeric() {
@@ -227,13 +260,8 @@ impl Item {
             })
             .flatten()
             .map(|c| c.to_ascii_uppercase())
-    }
-
-    pub(crate) fn call_number(&self) -> String {
-        let mut call_number = self.classification.to_string();
-        call_number.push_str(" ");
-
-        let author_normalized: String = self.normalize_author().take(5).collect();
+            .take(5)
+            .collect();
         call_number.push_str(&author_normalized);
         call_number.push_str(" ");
 
@@ -286,10 +314,14 @@ impl IndexedRow for Item {
         vec![
             SCHEMA.title,
             SCHEMA.format,
-            SCHEMA.authors,
+            SCHEMA.volume,
+            SCHEMA.issue,
+            SCHEMA.author,
             SCHEMA.discogs_release,
             SCHEMA.isbn,
+            SCHEMA.issn,
             SCHEMA.lccn,
+            SCHEMA.mbid,
             SCHEMA.oclc_number,
             SCHEMA.openlibrary_id,
         ]
@@ -306,7 +338,7 @@ impl Ord for Item {
     fn cmp(&self, other: &Self) -> Ordering {
         self.classification
             .cmp(&other.classification)
-            .then(self.normalize_author().cmp(other.normalize_author()))
+            .then(self.author_sort().cmp(&other.author_sort()))
             .then(self.original_date.cmp(&other.original_date))
             .then(self.date.cmp(&other.date))
             .then(self.title.cmp(&other.title))
