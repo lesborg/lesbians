@@ -8,32 +8,6 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PartialDate(u16, Option<(u8, Option<u8>)>);
 
-impl PartialDate {
-    pub(crate) fn from_y(year: u16) -> PartialDate {
-        PartialDate(year, None)
-    }
-
-    pub(crate) fn from_ym(year: u16, month: u8) -> PartialDate {
-        PartialDate(year, Some((month, None)))
-    }
-
-    pub(crate) fn from_ymd(year: u16, month: u8, day: u8) -> PartialDate {
-        PartialDate(year, Some((month, Some(day))))
-    }
-
-    pub(crate) fn year(&self) -> u16 {
-        self.0
-    }
-
-    pub(crate) fn month(&self) -> Option<u8> {
-        self.1.map(|(month, _)| month)
-    }
-
-    pub(crate) fn day(&self) -> Option<u8> {
-        self.1.and_then(|(_, opt_day)| opt_day)
-    }
-}
-
 impl fmt::Display for PartialDate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:04}", self.0)?;
@@ -98,15 +72,15 @@ mod tests {
 
     #[test]
     fn test() {
-        let date = PartialDate::from_y(6969);
+        let date = PartialDate(6969, None);
         assert_eq!(PartialDate::from_str("6969").unwrap(), date);
         assert_eq!("6969", date.to_string());
 
-        let date = PartialDate::from_ym(6969, 4);
+        let date = PartialDate(6969, Some((4, None)));
         assert_eq!(PartialDate::from_str("6969-04").unwrap(), date);
         assert_eq!("6969-04", date.to_string());
 
-        let date = PartialDate::from_ymd(6969, 4, 20);
+        let date = PartialDate(6969, Some((4, Some(20))));
         assert_eq!(PartialDate::from_str("6969-04-20").unwrap(), date);
         assert_eq!("6969-04-20", date.to_string());
     }

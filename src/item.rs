@@ -160,41 +160,6 @@ pub(crate) struct Item {
 }
 
 impl Item {
-    pub(crate) fn new(
-        classification: LESBClassification,
-        author_sort: &str,
-        title: &str,
-        language: String,
-        format: Format,
-        location: Location,
-    ) -> Item {
-        Item {
-            id: None,
-
-            classification,
-            author_sort: author_sort.to_owned(),
-            original_date: None,
-            date: None,
-            title: title.to_owned(),
-            language,
-            format,
-            volume_and_issue: None,
-            location,
-
-            authors: Vec::new(),
-            barcode: None,
-            notes: None,
-
-            discogs_release: None,
-            isbn13: None,
-            issn: None,
-            lccn: None,
-            musicbrainz_release_group: None,
-            oclc_number: None,
-            openlibrary_id: None,
-        }
-    }
-
     fn document(&self) -> Document {
         let mut document = Document::new();
 
@@ -281,14 +246,6 @@ impl Item {
         call_number.push_str(&self.language);
 
         call_number
-    }
-
-    pub(crate) fn author(&self) -> String {
-        if self.authors.is_empty() {
-            self.author_sort.to_owned()
-        } else {
-            (&self.authors).join(", ")
-        }
     }
 }
 
