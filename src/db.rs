@@ -114,13 +114,19 @@ impl Db {
         Ok(self.sled.open_tree(T::TREE.as_bytes().to_vec())?)
     }
 
+    fn open_secondary<T: Row>(&self, secondary: &'static str) -> Fallible<Arc<Tree>> {
+        Ok(self
+            .sled
+            .open_tree(format!("{}-{}", T::TREE, secondary).as_bytes().to_vec())?)
+    }
+
     pub(crate) fn load<T: Row>(&self, id: u64) -> Fallible<Option<T>> {
         let tree = self.open_tree::<T>()?;
         Ok(match tree.get(id_to_bytes(id))? {
             Some(value) => {
                 let mut map = HashMap::new();
                 for tree_name in T::SECONDARY {
-                    let tree = self.sled.open_tree(tree_name.as_bytes().to_vec())?;
+                    let tree = self.open_secondary::<T>(tree_name)?;
                     if let Some(v) = tree.get(id_to_bytes(id))? {
                         map.insert(*tree_name, v);
                     }
@@ -151,7 +157,7 @@ impl Db {
             }
         }
         for tree_name in T::SECONDARY {
-            let tree = self.sled.open_tree(tree_name.as_bytes().to_vec())?;
+            let tree = self.open_secondary::<T>(tree_name)?;
             match save_data.secondary.get(tree_name) {
                 Some(data) => tree.set(id_bytes, data.as_slice())?,
                 None => tree.del(id_bytes)?,
@@ -196,10 +202,7 @@ impl Db {
     pub(crate) fn iter<T: Row>(&self) -> Fallible<Iter<T>> {
         let mut map = HashMap::new();
         for tree_name in T::SECONDARY {
-            map.insert(
-                *tree_name,
-                self.sled.open_tree(tree_name.as_bytes().to_vec())?,
-            );
+            map.insert(*tree_name, self.open_secondary::<T>(tree_name)?);
         }
         Ok(Iter::new(self.open_tree::<T>()?, map))
     }
