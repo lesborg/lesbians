@@ -12,6 +12,8 @@ use std::str::FromStr;
 pub(crate) enum LESBClassification {
     /// General Works -- Cookbooks.
     AC,
+    /// General Works -- Firearms, Weapons, Fighting, Tactics.
+    AF,
     /// Socio-Political Science and History -- Biographies, Autobiographies, Interviews.
     HB,
     /// Socio-Political Science and History -- General History and Analysis.
@@ -54,7 +56,7 @@ pub(crate) enum LESBClassification {
     NR,
     /// Audio/Visual Art -- Books About Visual Art.
     NV,
-    /// Audio/Visual Art -- Books Of Art.
+    /// Audio/Visual Art -- Books of Art.
     NBookEmoji,
     /// Language -- Dictionaries.
     PD,
@@ -92,7 +94,7 @@ pub(crate) enum LESBClassification {
     WW,
     /// Witchcraft, Maths, Computers -- Forbidden Knowledge.
     WX,
-    /// Miscellaneous -- Quine Has No Self Control and Hoards Random Printed Material.
+    /// Miscellaneous -- Quine has no self control and hoards random printed material.
     XQ,
 }
 
@@ -102,6 +104,7 @@ impl LESBClassification {
 
         match self {
             AC => "Cookbooks",
+            AF => "Firearms, Weapons, Fighting, Tactics",
             HB => "Biographies, Autobiographies, Interviews",
             HG => "General History and Analysis",
             HM => "Media Analysis and Theory",
@@ -123,7 +126,7 @@ impl LESBClassification {
             NM => "Books About Music",
             NR => "Recorded Music",
             NV => "Books About Visual Art",
-            NBookEmoji => "Books Of Art",
+            NBookEmoji => "Books of Art",
             PD => "Dictionaries",
             PG => "Grammar and Style",
             QA => "Astronomy",
@@ -142,7 +145,7 @@ impl LESBClassification {
             WS => "Computer Systems and Security",
             WW => "Witchcraft, Grimoires, Magical Reference",
             WX => "Forbidden Knowledge",
-            XQ => "Quine Has No Self Control and Hoards Random Printed Material",
+            XQ => "Quine has no self control and hoards random printed material",
         }
     }
 
@@ -151,7 +154,7 @@ impl LESBClassification {
         use LESBClassification::*;
 
         match self {
-            AC => A,
+            AC | AF => A,
             HB | HG | HM | HR | HX => H,
             KA | KG => K,
             LF | LH | LL | LN | LP | LS | LX => L,
@@ -174,6 +177,7 @@ impl fmt::Display for LESBClassification {
             "{}",
             match self {
                 AC => "AC",
+                AF => "AF",
                 HB => "HB",
                 HG => "HG",
                 HM => "HM",
@@ -228,6 +232,7 @@ impl FromStr for LESBClassification {
 
         match s {
             "AC" => Ok(AC),
+            "AF" => Ok(AF),
             "HB" => Ok(HB),
             "HG" => Ok(HG),
             "HM" => Ok(HM),
