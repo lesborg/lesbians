@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 use crate::item::Item;
+use crate::user::User;
 use failure::{ensure, Fallible};
 use serde::{Deserialize, Serialize};
 use sled::Tree;
@@ -183,7 +184,10 @@ impl Db {
     }
 
     fn iter_all(&self) -> Fallible<impl Iterator<Item = Fallible<DumpRow>>> {
-        Ok(self.iter::<Item>()?.map(|item| item.map(DumpRow::Item)))
+        Ok(self
+            .iter::<Item>()?
+            .map(|item| item.map(DumpRow::from))
+            .chain(self.iter::<User>()?.map(|user| user.map(DumpRow::from))))
     }
 
     pub(crate) fn dump<W: Write>(&self, writer: W) -> Fallible<()> {
@@ -199,7 +203,8 @@ impl Db {
         let stream = serde_json::Deserializer::from_reader(reader).into_iter();
         for row in stream {
             match row? {
-                DumpRow::Item(mut item) => self.save(&mut item)?,
+                DumpRow::Item(mut item) => self.save(&mut *item)?,
+                DumpRow::User(mut user) => self.save(&mut *user)?,
             };
         }
         Ok(())
@@ -214,7 +219,20 @@ impl fmt::Debug for Db {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum DumpRow {
-    Item(Item),
+    Item(Box<Item>),
+    User(Box<User>),
+}
+
+impl From<Item> for DumpRow {
+    fn from(x: Item) -> DumpRow {
+        DumpRow::Item(Box::new(x))
+    }
+}
+
+impl From<User> for DumpRow {
+    fn from(x: User) -> DumpRow {
+        DumpRow::User(Box::new(x))
+    }
 }
 
 pub(crate) struct Iter<T> {

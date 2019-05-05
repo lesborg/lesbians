@@ -10,6 +10,7 @@ mod isbn;
 mod item;
 mod lesb;
 mod location;
+mod user;
 
 use crate::db::Db;
 use crate::item::Item;

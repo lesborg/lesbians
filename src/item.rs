@@ -21,6 +21,7 @@ struct ItemSchema {
     volume: Field,
     issue: Field,
     location: Field,
+    borrowed: Field,
     author: Field,
     discogs_release: Field,
     isbn: Field,
@@ -43,6 +44,7 @@ impl ItemSchema {
         let volume = schema_builder.add_text_field("volume", STRING);
         let issue = schema_builder.add_text_field("issue", STRING);
         let location = schema_builder.add_text_field("location", STRING);
+        let borrowed = schema_builder.add_u64_field("borrowed", INDEXED);
         let author = schema_builder.add_text_field("author", TEXT);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
@@ -59,6 +61,7 @@ impl ItemSchema {
             volume,
             issue,
             location,
+            borrowed,
             author,
             discogs_release,
             isbn,
@@ -124,6 +127,8 @@ pub(crate) struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) volume_and_issue: Option<(u64, u64)>,
     pub(crate) location: Location,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) borrower_barcode: Option<u64>,
 
     /// The inventory control barcode for this item. This is not necessarily the ISBN or UPC.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -194,6 +199,7 @@ impl Item {
             SCHEMA.location,
             &serde_plain::to_string(&self.location).unwrap(),
         );
+        document.add_u64(SCHEMA.borrowed, self.borrower_barcode.is_some() as u64);
         for credit in &self.authors {
             document.add_text(SCHEMA.author, &credit.author.name);
             if let Some(credited_as) = &credit.credited_as {
@@ -317,20 +323,7 @@ impl IndexedRow for Item {
     }
 
     fn query_parser_fields() -> Vec<Field> {
-        vec![
-            SCHEMA.title,
-            SCHEMA.format,
-            SCHEMA.volume,
-            SCHEMA.issue,
-            SCHEMA.author,
-            SCHEMA.discogs_release,
-            SCHEMA.isbn,
-            SCHEMA.issn,
-            SCHEMA.lccn,
-            SCHEMA.mbid,
-            SCHEMA.oclc_number,
-            SCHEMA.openlibrary_id,
-        ]
+        vec![SCHEMA.title, SCHEMA.author, SCHEMA.isbn]
     }
 }
 
