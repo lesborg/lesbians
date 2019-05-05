@@ -103,6 +103,10 @@ impl Db {
             TypeId::of::<Item>(),
             open_or_create_index::<Item>(path.as_ref())?,
         );
+        indices.insert(
+            TypeId::of::<User>(),
+            open_or_create_index::<User>(path.as_ref())?,
+        );
 
         Ok(Db {
             sled: sled::Db::start_default(path.as_ref().join("sled"))?,
