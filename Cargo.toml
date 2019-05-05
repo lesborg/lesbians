@@ -7,8 +7,9 @@ edition = "2018"
 publish = false
 
 [profile.release]
+codegen-units = 1
 lto = true
-debug = true
+opt-level = 's'
 
 [dependencies]
 deunicode = "1.0.0"
