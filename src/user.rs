@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 use crate::db::{IndexedRow, Row, SaveData};
 use failure::{ensure, Fallible};
 use lazy_static::lazy_static;
