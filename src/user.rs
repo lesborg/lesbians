@@ -2,6 +2,8 @@ use crate::db::{IndexedRow, Row, SaveData};
 use failure::{ensure, Fallible};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use sled::IVec;
+use std::collections::HashMap;
 use tantivy::schema::{Document, Field, Schema};
 
 struct UserSchema {
@@ -29,10 +31,20 @@ lazy_static! {
     static ref SCHEMA: UserSchema = UserSchema::new();
 }
 
+fn return_false() -> bool {
+    false
+}
+
+fn bool_is_false(b: &bool) -> bool {
+    !b
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct User {
     pub(crate) barcode: u64,
     pub(crate) name: String,
+    #[serde(default = "return_false")]
+    #[serde(skip_serializing_if = "bool_is_false")]
     pub(crate) admin: bool,
 }
 
@@ -48,9 +60,9 @@ impl User {
 impl Row for User {
     const TREE: &'static str = "users";
 
-    fn load(id: u64, blob: &[u8]) -> Fallible<User> {
+    fn load(id: u64, blob: &[u8], _secondary: HashMap<&'static str, IVec>) -> Fallible<User> {
         let user: User = serde_cbor::from_slice(blob)?;
-        ensure!(id == (user.barcode), "id and barcode do not match");
+        ensure!(id == user.barcode, "id and barcode do not match");
         Ok(user)
     }
 

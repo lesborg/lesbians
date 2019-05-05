@@ -9,7 +9,9 @@ use crate::location::Location;
 use failure::Fallible;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use sled::IVec;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use tantivy::schema::{Field, Schema};
 use tantivy::Document;
 
@@ -21,7 +23,6 @@ struct ItemSchema {
     volume: Field,
     issue: Field,
     location: Field,
-    borrowed: Field,
     author: Field,
     discogs_release: Field,
     isbn: Field,
@@ -44,7 +45,6 @@ impl ItemSchema {
         let volume = schema_builder.add_text_field("volume", STRING);
         let issue = schema_builder.add_text_field("issue", STRING);
         let location = schema_builder.add_text_field("location", STRING);
-        let borrowed = schema_builder.add_u64_field("borrowed", INDEXED);
         let author = schema_builder.add_text_field("author", TEXT);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
@@ -61,7 +61,6 @@ impl ItemSchema {
             volume,
             issue,
             location,
-            borrowed,
             author,
             discogs_release,
             isbn,
@@ -128,7 +127,7 @@ pub(crate) struct Item {
     pub(crate) volume_and_issue: Option<(u64, u64)>,
     pub(crate) location: Location,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) borrower_barcode: Option<u64>,
+    pub(crate) borrower: Option<u64>,
 
     /// The inventory control barcode for this item. This is not necessarily the ISBN or UPC.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -199,7 +198,6 @@ impl Item {
             SCHEMA.location,
             &serde_plain::to_string(&self.location).unwrap(),
         );
-        document.add_u64(SCHEMA.borrowed, self.borrower_barcode.is_some() as u64);
         for credit in &self.authors {
             document.add_text(SCHEMA.author, &credit.author.name);
             if let Some(credited_as) = &credit.credited_as {
@@ -287,14 +285,22 @@ impl Item {
 
         call_number
     }
+
+    pub(crate) fn is_checked_out(&self) -> bool {
+        self.borrower.is_some()
+    }
 }
 
 impl Row for Item {
-    const TREE: &'static str = "items";
+    const TREE: &'static str = "item";
+    const SECONDARY: &'static [&'static str] = &["checkout"];
 
-    fn load(id: u64, blob: &[u8]) -> Fallible<Item> {
+    fn load(id: u64, blob: &[u8], secondary: HashMap<&'static str, IVec>) -> Fallible<Item> {
         let mut item: Item = serde_cbor::from_slice(blob)?;
         item.id = Some(id);
+        if let Some(barcode) = secondary.get("checkout") {
+            item.borrower = Some(crate::db::id_to_u64(barcode)?);
+        }
         Ok(item)
     }
 
@@ -304,10 +310,14 @@ impl Row for Item {
     {
         let id = id_gen(self.id)?;
         self.id = Some(id);
-        let mut save_data =
-            SaveData::new(id, serde_cbor::to_vec(self)?).index(Item::id_field(), self.document());
-        if let Some(barcode) = &self.barcode {
-            save_data = save_data.reverse_lookup("item_barcode", barcode.as_bytes().to_vec());
+
+        let old_borrower = std::mem::replace(&mut self.borrower, None);
+        let cbor = serde_cbor::to_vec(self);
+        self.borrower = old_borrower;
+
+        let mut save_data = SaveData::new(id, cbor?).index(Item::id_field(), self.document());
+        if let Some(borrower) = self.borrower {
+            save_data = save_data.secondary("checkout", crate::db::id_to_bytes(borrower).to_vec());
         }
         Ok(save_data)
     }

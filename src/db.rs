@@ -4,7 +4,7 @@ use crate::item::Item;
 use crate::user::User;
 use failure::{ensure, Fallible};
 use serde::{Deserialize, Serialize};
-use sled::Tree;
+use sled::{IVec, Tree};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt;
@@ -19,11 +19,11 @@ use tantivy::query::QueryParser;
 use tantivy::schema::{Field, Schema};
 use tantivy::{DocAddress, Document, Index, IndexWriter, Score, Term};
 
-fn id_to_bytes(id: u64) -> [u8; 8] {
+pub(crate) fn id_to_bytes(id: u64) -> [u8; 8] {
     id.to_ne_bytes()
 }
 
-fn id_to_u64(id: &[u8]) -> Fallible<u64> {
+pub(crate) fn id_to_u64(id: &[u8]) -> Fallible<u64> {
     ensure!(id.len() == 8, "row ID {:?} is incorrect length", id);
     let mut array = [0; 8];
     array.copy_from_slice(id);
@@ -43,7 +43,7 @@ pub(crate) struct SaveData {
     id: u64,
     blob: Vec<u8>,
     index: Option<IndexData>,
-    reverse_lookups: Vec<(&'static str, Vec<u8>)>,
+    secondary: HashMap<&'static str, Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -58,7 +58,7 @@ impl SaveData {
             id,
             blob,
             index: None,
-            reverse_lookups: Vec::new(),
+            secondary: HashMap::new(),
         }
     }
 
@@ -68,17 +68,18 @@ impl SaveData {
         v
     }
 
-    pub(crate) fn reverse_lookup(self, tree: &'static str, key: Vec<u8>) -> SaveData {
+    pub(crate) fn secondary(self, tree_name: &'static str, blob: Vec<u8>) -> SaveData {
         let mut v = self;
-        v.reverse_lookups.push((tree, key));
+        v.secondary.insert(tree_name, blob);
         v
     }
 }
 
 pub(crate) trait Row: Sized {
     const TREE: &'static str;
+    const SECONDARY: &'static [&'static str] = &[];
 
-    fn load(id: u64, blob: &[u8]) -> Fallible<Self>;
+    fn load(id: u64, blob: &[u8], secondary: HashMap<&'static str, IVec>) -> Fallible<Self>;
     fn save<F>(&mut self, id_gen: F) -> Fallible<SaveData>
     where
         F: FnOnce(Option<u64>) -> Fallible<u64>;
@@ -116,7 +117,16 @@ impl Db {
     pub(crate) fn load<T: Row>(&self, id: u64) -> Fallible<Option<T>> {
         let tree = self.open_tree::<T>()?;
         Ok(match tree.get(id_to_bytes(id))? {
-            Some(value) => Some(T::load(id, &value)?),
+            Some(value) => {
+                let mut map = HashMap::new();
+                for tree_name in T::SECONDARY {
+                    let tree = self.sled.open_tree(tree_name.as_bytes().to_vec())?;
+                    if let Some(v) = tree.get(id_to_bytes(id))? {
+                        map.insert(*tree_name, v);
+                    }
+                }
+                Some(T::load(id, &value, map)?)
+            }
             None => None,
         })
     }
@@ -130,7 +140,8 @@ impl Db {
             Some(id) => Ok(id),
             None => self.sled.generate_id().map_err(failure::Error::from),
         })?;
-        tree.set(id_to_bytes(save_data.id), save_data.blob)?;
+        let id_bytes = id_to_bytes(save_data.id);
+        tree.set(id_bytes, save_data.blob)?;
         if let Some(IndexData { id_field, document }) = save_data.index {
             if let Some((_, ref mut index_writer)) = self.indices.get_mut(&TypeId::of::<T>()) {
                 index_writer.prepare_commit()?;
@@ -139,9 +150,9 @@ impl Db {
                 index_writer.commit()?;
             }
         }
-        for (tree, key) in save_data.reverse_lookups {
-            let tree = self.sled.open_tree(tree.as_bytes().to_vec())?;
-            tree.set(key, id_to_bytes(save_data.id).to_vec())?;
+        for (tree_name, data) in save_data.secondary {
+            let tree = self.sled.open_tree(tree_name.as_bytes().to_vec())?;
+            tree.set(id_bytes, data)?;
         }
         Ok(())
     }
@@ -180,7 +191,14 @@ impl Db {
     }
 
     pub(crate) fn iter<T: Row>(&self) -> Fallible<Iter<T>> {
-        Ok(Iter::new(self.open_tree::<T>()?))
+        let mut map = HashMap::new();
+        for tree_name in T::SECONDARY {
+            map.insert(
+                *tree_name,
+                self.sled.open_tree(tree_name.as_bytes().to_vec())?,
+            );
+        }
+        Ok(Iter::new(self.open_tree::<T>()?, map))
     }
 
     fn iter_all(&self) -> Fallible<impl Iterator<Item = Fallible<DumpRow>>> {
@@ -237,15 +255,17 @@ impl From<User> for DumpRow {
 
 pub(crate) struct Iter<T> {
     tree: Arc<sled::Tree>,
+    secondary: HashMap<&'static str, Arc<Tree>>,
     last_key: Vec<u8>,
     done: bool,
     phantom: PhantomData<T>,
 }
 
 impl<T> Iter<T> {
-    fn new(tree: Arc<sled::Tree>) -> Iter<T> {
+    fn new(tree: Arc<Tree>, secondary: HashMap<&'static str, Arc<Tree>>) -> Iter<T> {
         Iter {
             tree,
+            secondary,
             last_key: Vec::new(),
             done: false,
             phantom: PhantomData,
@@ -263,8 +283,18 @@ impl<T: Row> Iterator for Iter<T> {
             match self.tree.get_gt(&self.last_key) {
                 Ok(Some((key, value))) => {
                     let id = id_to_u64(&key);
+                    let mut secondary = HashMap::new();
+                    for (tree_name, tree) in &self.secondary {
+                        match tree.get(&key) {
+                            Ok(Some(v)) => {
+                                secondary.insert(*tree_name, v);
+                            }
+                            Ok(None) => {}
+                            Err(err) => return Some(Err(err.into())),
+                        }
+                    }
                     self.last_key = key;
-                    Some(id.and_then(|id| T::load(id, &value)))
+                    Some(id.and_then(|id| T::load(id, &value, secondary)))
                 }
                 Ok(None) => {
                     self.done = true;
