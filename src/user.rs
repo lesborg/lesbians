@@ -33,6 +33,7 @@ lazy_static! {
 pub(crate) struct User {
     pub(crate) barcode: u64,
     pub(crate) name: String,
+    pub(crate) admin: bool,
 }
 
 impl User {
