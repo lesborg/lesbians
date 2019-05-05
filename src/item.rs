@@ -18,10 +18,13 @@ struct ItemSchema {
     id: Field,
     title: Field,
     format: Field,
+    volume: Field,
+    issue: Field,
     location: Field,
     authors: Field,
     discogs_release: Field,
     isbn: Field,
+    issn: Field,
     lccn: Field,
     mbid: Field,
     oclc_number: Field,
@@ -36,10 +39,13 @@ impl ItemSchema {
         let id = schema_builder.add_u64_field("id", INDEXED | STORED | FAST);
         let title = schema_builder.add_text_field("title", TEXT);
         let format = schema_builder.add_text_field("format", STRING);
+        let volume = schema_builder.add_text_field("volume", STRING);
+        let issue = schema_builder.add_text_field("issue", STRING);
         let location = schema_builder.add_text_field("location", STRING);
         let authors = schema_builder.add_text_field("author", TEXT);
         let discogs_release = schema_builder.add_text_field("discogs", STRING);
         let isbn = schema_builder.add_text_field("isbn", STRING);
+        let issn = schema_builder.add_text_field("issn", STRING);
         let lccn = schema_builder.add_text_field("lccn", STRING);
         let mbid = schema_builder.add_text_field("mbid", STRING);
         let oclc_number = schema_builder.add_text_field("oclc", STRING);
@@ -49,10 +55,13 @@ impl ItemSchema {
             id,
             title,
             format,
+            volume,
+            issue,
             location,
             authors,
             discogs_release,
             isbn,
+            issn,
             lccn,
             mbid,
             oclc_number,
@@ -81,6 +90,7 @@ pub(crate) struct Item {
     pub(crate) title: String,
     pub(crate) language: String,
     pub(crate) format: Format,
+    pub(crate) volume_and_issue: Option<(u64, u64)>,
     pub(crate) location: Location,
 
     #[serde(default)]
@@ -113,6 +123,13 @@ pub(crate) struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) isbn13: Option<String>,
 
+    /// ISSN for identifying a serial.
+    ///
+    /// [Wikidata property P236](https://www.wikidata.org/wiki/Property:P236)
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) issn: Option<String>,
+
     /// Library of Congress Control Number for identifying a bibliographic record.
     ///
     /// [Wikidata property P1144](https://www.wikidata.org/wiki/Property:P1144)
@@ -123,6 +140,8 @@ pub(crate) struct Item {
     /// MusicBrainz release group ID for identifying a musical work.
     ///
     /// [Wikidata property P436](https://www.wikidata.org/wiki/Property:P436)
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) musicbrainz_release_group: Option<String>,
 
     /// OCLC control number for identifying a bibliographic record.
@@ -159,6 +178,7 @@ impl Item {
             title: title.to_owned(),
             language,
             format,
+            volume_and_issue: None,
             location,
 
             authors: Vec::new(),
@@ -167,6 +187,7 @@ impl Item {
 
             discogs_release: None,
             isbn13: None,
+            issn: None,
             lccn: None,
             musicbrainz_release_group: None,
             oclc_number: None,
@@ -196,6 +217,11 @@ impl Item {
             }
         }
 
+        if let Some((volume, issue)) = self.volume_and_issue {
+            document.add_text(SCHEMA.volume, &volume.to_string());
+            document.add_text(SCHEMA.issue, &issue.to_string());
+        }
+
         macro_rules! add_option {
             ($i:ident) => {
                 if let Some($i) = &self.$i {
@@ -204,6 +230,7 @@ impl Item {
             };
         }
         add_option!(discogs_release);
+        add_option!(issn);
         add_option!(lccn);
         add_option!(oclc_number);
         add_option!(openlibrary_id);
