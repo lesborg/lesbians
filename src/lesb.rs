@@ -6,7 +6,7 @@ use std::fmt;
 use std::str::FromStr;
 
 /// The _LCC Enhancement for the Sortation of Books_ classification system.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum LESBClassification {
     /// General Works -- Cookbooks.
     AC,
@@ -296,7 +296,7 @@ impl<'de> Deserialize<'de> for LESBClassification {
 }
 
 /// Categories of classifications within the _LESB_.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum LESBCategory {
     /// General Works.
     A,
