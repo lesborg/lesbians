@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+#![warn(clippy::pedantic)]
+#![allow(clippy::use_self)]
+
 mod date;
 mod db;
 mod format;

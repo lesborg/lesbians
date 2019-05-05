@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+#![allow(clippy::non_ascii_literal)]
+
 use failure::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
@@ -95,7 +97,7 @@ pub(crate) enum LESBClassification {
 }
 
 impl LESBClassification {
-    pub(crate) fn description(&self) -> &'static str {
+    pub(crate) fn description(self) -> &'static str {
         use LESBClassification::*;
 
         match self {
@@ -144,7 +146,7 @@ impl LESBClassification {
         }
     }
 
-    pub(crate) fn category(&self) -> LESBCategory {
+    pub(crate) fn category(self) -> LESBCategory {
         use LESBCategory::*;
         use LESBClassification::*;
 
@@ -321,7 +323,7 @@ pub(crate) enum LESBCategory {
 }
 
 impl LESBCategory {
-    pub(crate) fn description(&self) -> &'static str {
+    pub(crate) fn description(self) -> &'static str {
         use LESBCategory::*;
 
         match self {

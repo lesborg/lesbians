@@ -32,6 +32,7 @@ struct ItemSchema {
 }
 
 impl ItemSchema {
+    #[allow(clippy::similar_names)]
     fn new() -> ItemSchema {
         use tantivy::schema::{SchemaBuilder, FAST, INDEXED, STORED, STRING, TEXT};
 
@@ -219,12 +220,11 @@ impl Item {
             .chars()
             .filter_map(|c| {
                 if c.is_alphanumeric() {
-                    deunicode::deunicode_char(c)
+                    deunicode::deunicode_char(c).map(str::chars)
                 } else {
                     None
                 }
             })
-            .map(str::chars)
             .flatten()
             .map(|c| c.to_ascii_uppercase())
     }

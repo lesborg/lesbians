@@ -3,7 +3,7 @@
 pub(crate) fn isbn10_to_isbn13(isbn10: &str) -> Option<String> {
     let isbn10 = isbn10.replace('-', "").into_bytes();
     if isbn10.len() != 10
-        || !isbn10.iter().take(9).all(|b| b.is_ascii_digit())
+        || !isbn10.iter().take(9).all(u8::is_ascii_digit)
         || !(isbn10[9].is_ascii_digit() || isbn10[9] == b'X')
     {
         return None;
@@ -24,17 +24,18 @@ pub(crate) fn isbn10_to_isbn13(isbn10: &str) -> Option<String> {
     Some(String::from_utf8(isbn13.to_vec()).unwrap())
 }
 
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn isbn13_to_isbn10(isbn13: &str) -> Option<String> {
     let isbn13 = isbn13.replace('-', "").into_bytes();
-    if isbn13.len() != 13 || !isbn13.iter().all(|b| b.is_ascii_digit()) {
+    if isbn13.len() != 13 || !isbn13.iter().all(u8::is_ascii_digit) {
         return None;
     }
 
     let mut isbn10: [u8; 10] = [b'0'; 10];
     (&mut isbn10[0..9]).copy_from_slice(&isbn13[3..12]);
 
-    let mut sum = 0u16;
-    let mut acc = 0u16;
+    let mut sum = 0_u16;
+    let mut acc = 0_u16;
     for b in isbn10.iter().take(9) {
         acc += u16::from(b - b'0');
         sum += acc;
