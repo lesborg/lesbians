@@ -38,6 +38,13 @@ fn open_or_create_index<T: IndexedRow>(path: &Path) -> Fallible<(Index, IndexWri
     Ok((index, index_writer))
 }
 
+#[cfg(test)]
+fn create_ram_index<T: IndexedRow>() -> Fallible<(Index, IndexWriter)> {
+    let index = Index::create_in_ram(T::schema());
+    let index_writer = index.writer(50_000_000)?;
+    Ok((index, index_writer))
+}
+
 #[derive(Debug)]
 pub(crate) struct SaveData {
     id: u64,
@@ -110,6 +117,20 @@ impl Db {
 
         Ok(Db {
             sled: sled::Db::start_default(path.as_ref().join("sled"))?,
+            indices,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_memory() -> Fallible<Db> {
+        let mut indices = HashMap::new();
+        indices.insert(TypeId::of::<Item>(), create_ram_index::<Item>()?);
+        indices.insert(TypeId::of::<User>(), create_ram_index::<User>()?);
+
+        let config = sled::ConfigBuilder::default().temporary(true).build();
+
+        Ok(Db {
+            sled: sled::Db::start(config)?,
             indices,
         })
     }

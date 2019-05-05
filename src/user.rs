@@ -58,6 +58,15 @@ impl User {
         document.add_text(SCHEMA.name, &self.name);
         document
     }
+
+    #[cfg(test)]
+    pub(crate) fn test_user() -> User {
+        User {
+            barcode: 0,
+            name: "test user".to_owned(),
+            admin: false,
+        }
+    }
 }
 
 impl Row for User {
@@ -89,5 +98,28 @@ impl IndexedRow for User {
 
     fn query_parser_fields() -> Vec<Field> {
         vec![SCHEMA.name]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::Db;
+    use crate::user::User;
+    use failure::Fallible;
+
+    #[test]
+    fn test() -> Fallible<()> {
+        let mut db = Db::open_memory()?;
+        let mut user = User::test_user();
+        db.save(&mut user)?;
+
+        let loaded_user: User = db.load(user.barcode)?.unwrap();
+        assert_eq!(user, loaded_user);
+
+        let query_result: Vec<User> = db.query("test")?;
+        assert_eq!(query_result.len(), 1);
+        assert_eq!(user, query_result[0]);
+
+        Ok(())
     }
 }

@@ -6,7 +6,7 @@ use std::fmt;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PartialDate(u16, Option<(u8, Option<u8>)>);
+pub(crate) struct PartialDate(pub u16, pub Option<(u8, Option<u8>)>);
 
 impl PartialDate {
     pub(crate) fn year(self) -> u16 {

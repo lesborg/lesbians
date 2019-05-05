@@ -84,29 +84,12 @@ pub(crate) struct Author {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct JoinPhrase(pub String);
-
-impl JoinPhrase {
-    fn is_default(&self) -> bool {
-        *self == JoinPhrase::default()
-    }
-}
-
-impl Default for JoinPhrase {
-    fn default() -> JoinPhrase {
-        JoinPhrase(", ".to_owned())
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct Credit {
     #[serde(flatten)]
     author: Author,
     #[serde(skip_serializing_if = "Option::is_none")]
     credited_as: Option<String>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "JoinPhrase::is_default")]
-    join_phrase: JoinPhrase,
+    join_phrase: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -241,7 +224,9 @@ impl Item {
         let mut s = String::new();
         for credit in &self.authors {
             s.push_str(&credit.author.sort_name);
-            s.push_str(&credit.join_phrase.0);
+            if let Some(join_phrase) = &credit.join_phrase {
+                s.push_str(&join_phrase);
+            }
         }
         s
     }
@@ -288,6 +273,38 @@ impl Item {
 
     pub(crate) fn is_checked_out(&self) -> bool {
         self.borrower.is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_item() -> Item {
+        Item {
+            id: None,
+            classification: LESBClassification::NI,
+            authors: vec![Credit {
+                author: Author {
+                    name: "Emily Noyes Vanderpoel".to_owned(),
+                    sort_name: "Vanderpoel, Emily Noyes".to_owned(),
+                },
+                credited_as: None,
+                join_phrase: None,
+            }],
+            original_date: Some(PartialDate(1902, Some((1, None)))),
+            title: "Color problems: a practical manual for the lay student of color".to_owned(),
+            language: "eng".to_owned(),
+            format: Format::Hardcover,
+            volume_and_issue: None,
+            location: Location::Billy,
+            borrower: None,
+            barcode: None,
+            notes: None,
+            discogs_release: None,
+            isbn13: Some("9780999609934".to_owned()),
+            issn: None,
+            lccn: None,
+            musicbrainz_release_group: None,
+            oclc_number: Some("1087838699".to_owned()),
+            openlibrary_id: None,
+        }
     }
 }
 
@@ -361,5 +378,40 @@ impl Ord for Item {
             })
             .then(self.language.cmp(&other.language))
             .then(self.id.cmp(&other.id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::Db;
+    use crate::item::Item;
+    use failure::Fallible;
+
+    #[test]
+    fn test() -> Fallible<()> {
+        let mut db = Db::open_memory()?;
+        let mut item = Item::test_item();
+        db.save(&mut item)?;
+        assert_eq!(item.author_sort(), "Vanderpoel, Emily Noyes");
+
+        {
+            let loaded_item: Item = db.load(item.id.unwrap())?.unwrap();
+            assert_eq!(item, loaded_item);
+            assert!(!loaded_item.is_checked_out());
+        }
+
+        item.borrower = Some(0);
+        db.save(&mut item)?;
+        {
+            let loaded_item: Item = db.load(item.id.unwrap())?.unwrap();
+            assert_eq!(item, loaded_item);
+            assert!(loaded_item.is_checked_out());
+        }
+
+        let query_result: Vec<Item> = db.query("color")?;
+        assert_eq!(query_result.len(), 1);
+        assert_eq!(item, query_result[0]);
+
+        Ok(())
     }
 }
