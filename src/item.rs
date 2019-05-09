@@ -78,21 +78,6 @@ lazy_static! {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct Author {
-    name: String,
-    sort_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct Credit {
-    #[serde(flatten)]
-    author: Author,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    credited_as: Option<String>,
-    join_phrase: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct Item {
     #[serde(skip)]
     id: Option<u64>,
@@ -100,7 +85,7 @@ pub(crate) struct Item {
     pub(crate) classification: LESBClassification,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(crate) authors: Vec<Credit>,
+    pub(crate) authors: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) original_date: Option<PartialDate>,
     pub(crate) title: String,
@@ -181,11 +166,8 @@ impl Item {
             SCHEMA.location,
             &serde_plain::to_string(&self.location).unwrap(),
         );
-        for credit in &self.authors {
-            document.add_text(SCHEMA.author, &credit.author.name);
-            if let Some(credited_as) = &credit.credited_as {
-                document.add_text(SCHEMA.author, &credited_as);
-            }
+        for author in &self.authors {
+            document.add_text(SCHEMA.author, author);
         }
 
         if let Some((volume, issue)) = self.volume_and_issue {
@@ -221,14 +203,7 @@ impl Item {
     }
 
     fn author_sort(&self) -> String {
-        let mut s = String::new();
-        for credit in &self.authors {
-            s.push_str(&credit.author.sort_name);
-            if let Some(join_phrase) = &credit.join_phrase {
-                s.push_str(&join_phrase);
-            }
-        }
-        s
+        self.authors.join(", ")
     }
 
     pub(crate) fn call_number(&self) -> String {
@@ -280,14 +255,7 @@ impl Item {
         Item {
             id: None,
             classification: LESBClassification::NI,
-            authors: vec![Credit {
-                author: Author {
-                    name: "Emily Noyes Vanderpoel".to_owned(),
-                    sort_name: "Vanderpoel, Emily Noyes".to_owned(),
-                },
-                credited_as: None,
-                join_phrase: None,
-            }],
+            authors: vec!["Vanderpoel, Emily Noyes".to_owned()],
             original_date: Some(PartialDate(1902, Some((1, None)))),
             title: "Color problems: a practical manual for the lay student of color".to_owned(),
             language: "eng".to_owned(),
