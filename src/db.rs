@@ -13,6 +13,7 @@ use std::io::prelude::*;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::Mutex;
 use tantivy::collector::TopDocs;
 use tantivy::directory::MmapDirectory;
 use tantivy::query::QueryParser;
@@ -30,19 +31,19 @@ pub(crate) fn id_to_u64(id: &[u8]) -> Fallible<u64> {
     Ok(u64::from_ne_bytes(array))
 }
 
-fn open_or_create_index<T: IndexedRow>(path: &Path) -> Fallible<(Index, IndexWriter)> {
+fn open_or_create_index<T: IndexedRow>(path: &Path) -> Fallible<(Index, Mutex<IndexWriter>)> {
     let path = path.join("idx").join(T::TREE);
     fs::create_dir_all(&path)?;
     let index = Index::open_or_create(MmapDirectory::open(&path)?, T::schema())?;
     let index_writer = index.writer(50_000_000)?;
-    Ok((index, index_writer))
+    Ok((index, Mutex::new(index_writer)))
 }
 
 #[cfg(test)]
-fn create_ram_index<T: IndexedRow>() -> Fallible<(Index, IndexWriter)> {
+fn create_ram_index<T: IndexedRow>() -> Fallible<(Index, Mutex<IndexWriter>)> {
     let index = Index::create_in_ram(T::schema());
     let index_writer = index.writer(50_000_000)?;
-    Ok((index, index_writer))
+    Ok((index, Mutex::new(index_writer)))
 }
 
 #[derive(Debug)]
@@ -100,7 +101,7 @@ pub(crate) trait IndexedRow: Row {
 
 pub(crate) struct Db {
     sled: sled::Db,
-    indices: HashMap<TypeId, (Index, IndexWriter)>,
+    indices: HashMap<TypeId, (Index, Mutex<IndexWriter>)>,
 }
 
 impl Db {
@@ -175,6 +176,7 @@ impl Db {
         tree.set(id_bytes, save_data.blob)?;
         if let Some(IndexData { id_field, document }) = save_data.index {
             if let Some((_, ref mut index_writer)) = self.indices.get_mut(&TypeId::of::<T>()) {
+                let mut index_writer = index_writer.lock().unwrap();
                 index_writer.prepare_commit()?;
                 index_writer.delete_term(Term::from_field_u64(id_field, save_data.id));
                 index_writer.add_document(document);

@@ -11,6 +11,7 @@ mod item;
 mod lesb;
 mod location;
 mod user;
+mod web;
 
 use crate::db::Db;
 use crate::item::Item;
@@ -36,6 +37,11 @@ enum SubCommand {
     Restore,
     #[structopt(name = "search")]
     Search { query: String },
+    #[structopt(name = "serve")]
+    Serve {
+        #[structopt(short = "a", long = "addr", default_value = "localhost:3000")]
+        addr: String,
+    },
 }
 
 fn main() -> Fallible<()> {
@@ -54,5 +60,6 @@ fn main() -> Fallible<()> {
             }
             Ok(())
         }
+        SubCommand::Serve { addr } => crate::web::serve(addr, db),
     }
 }
